@@ -6,6 +6,58 @@
 #5: Illumina 2
 #6: Nanopore
 #7: Genome Size
+
+
+  #### Pilon_func
+  # Arguments:
+  #  1. input
+  #  2. working_dir
+  #  3. log
+  #  4. pilon_mode
+  #  5. illumina_r1_fastq
+  #  6. illumina_r2_fastq
+  #  7. threads
+  pilon_func() {
+    if [ $# != 7 ]
+    then
+      echo 'Command should be run as:'
+      echo 'pilon_func {Assembly} {Working Directory} {Log File} {Pilon Mode: (paired|frag)} {Illumina R1} {Illumina R2} {Threads}'
+      return 1
+    fi
+    local current_asm_fa=$1
+    local working_dir=$2
+    local log=$3
+    local pilon_mode=$4
+    local illumina_r1_fastq=$5
+    local illumina_r2_fastq=$6
+    local threads=$7
+
+    echo  "$(date +%T%Z) - Pilon: Starting" >> $log
+
+    # pilon polishing
+    if [ "$pilon_mode" != 'None' ]; then
+        local illumina_map="$working_dir/illumina_to_asm.bam"
+        local new_asm_fa="$working_dir/pilon_finished.assembly.fasta"  # .fasta is required pilon suffix
+        bwa index "$current_asm_fa"
+        if [ "paired" = "$pilon_mode" ]; then
+            bwa mem -t $threads "$current_asm_fa" "$illumina_r1_fastq" "$illumina_r2_fastq" | samtools view -b - > "$illumina_map"
+            samtools sort -o "$illumina_map".sorted "$illumina_map" && mv "$illumina_map".sorted "$illumina_map"
+            samtools index "$illumina_map"
+            pilon -Xmx120g --genome "$current_asm_fa" --jumps "$illumina_map" --changes --verbose --nostrays --fix all --output "${new_asm_fa%.fasta}"
+        elif [ "frag" = "$pilon_mode" ]; then
+            bwa mem "$current_asm_fa" "$illumina_r1_fastq" | samtools view -b - > "$illumina_map"
+            pilon --genome "$current_asm_fa" --frags "$illumina_map" --output "${new_asm_fa%.fasta}"
+        fi
+        current_asm_fa=$new_asm_fa
+    fi
+
+    echo  "$(date +%T%Z) - Pilon: Finished" >> $log
+
+    pilon_output="$current_asm_fa"
+    return 0
+  }
+
+########################## Main Pipeline #####################################
 if [ $# != 7 ]
 then
   echo 'Command should be run as:'
@@ -78,7 +130,7 @@ else
   # Run spades assembly
   if [ ! -f ${ill_asm} ];
   then
-    spades.py -1 ${ill1} -2 ${ill2} --nanopore ${ONT} -t ${threads} -o ${wd}/ASM_work/spades --meta --plasmid
+    spades.py -1 ${ill1} -2 ${ill2} --nanopore ${ONT} -t ${threads} -o ${wd}/ASM_work/spades --meta
   fi
 
   # Run flye assembly
@@ -155,52 +207,4 @@ else
   fi
 
 
-  #### Pilon_func
-  # Arguments:
-  #  1. input
-  #  2. working_dir
-  #  3. log
-  #  4. pilon_mode
-  #  5. illumina_r1_fastq
-  #  6. illumina_r2_fastq
-  #  7. threads
-  pilon_func() {
-    if [ $# != 7 ]
-    then
-      echo 'Command should be run as:'
-      echo 'pilon_func {Assembly} {Working Directory} {Log File} {Pilon Mode: (paired|frag)} {Illumina R1} {Illumina R2} {Threads}'
-      return 1
-    fi
-    local current_asm_fa=$1
-    local working_dir=$2
-    local log=$3
-    local pilon_mode=$4
-    local illumina_r1_fastq=$5
-    local illumina_r2_fastq=$6
-    local threads=$7
-
-    echo  "$(date +%T%Z) - Pilon: Starting" >> $log
-
-    # pilon polishing
-    if [ "$pilon_mode" != 'None' ]; then
-        local illumina_map="$working_dir/illumina_to_asm.bam"
-        local new_asm_fa="$working_dir/pilon_finished.assembly.fasta"  # .fasta is required pilon suffix
-        bwa index "$current_asm_fa"
-        if [ "paired" = "$pilon_mode" ]; then
-            bwa mem -t $threads "$current_asm_fa" "$illumina_r1_fastq" "$illumina_r2_fastq" | samtools view -b - > "$illumina_map"
-            samtools sort -o "$illumina_map".sorted "$illumina_map" && mv "$illumina_map".sorted "$illumina_map"
-            samtools index "$illumina_map"
-            pilon -Xmx120g --genome "$current_asm_fa" --jumps "$illumina_map" --changes --verbose --nostrays --fix all --output "${new_asm_fa%.fasta}"
-        elif [ "frag" = "$pilon_mode" ]; then
-            bwa mem "$current_asm_fa" "$illumina_r1_fastq" | samtools view -b - > "$illumina_map"
-            pilon --genome "$current_asm_fa" --frags "$illumina_map" --output "${new_asm_fa%.fasta}"
-        fi
-        current_asm_fa=$new_asm_fa
-    fi
-
-    echo  "$(date +%T%Z) - Pilon: Finished" >> $log
-
-    pilon_output="$current_asm_fa"
-    return 0
-  }
 fi
