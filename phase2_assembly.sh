@@ -202,7 +202,7 @@ else
         asm=${wd}/ASM_work/pilon${r}/pilon_finished.assembly.fasta
       done
     else
-      touch ${polished_context_contigs}
+      polished_context_contigs=${ONT_context_contigs}
     fi
   fi
 
