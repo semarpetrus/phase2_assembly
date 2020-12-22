@@ -191,13 +191,19 @@ else
   # Polish Oxford reads containing spades contigs
   if [ ! -f ${polished_context_contigs} ];
   then
-    asm=${ONT_context_contigs}
-    for r in {00..09};
-    do
-      mkdir ${wd}/ASM_work/pilon${r}
-      pilon_func ${asm} ${wd}/ASM_work/pilon${r} ${wd}/ASM_work/pilon.log paired ${ill1} ${ill2} ${threads}
-      asm=${wd}/ASM_work/pilon${r}/pilon_finished.assembly.fasta
-    done
+    # Check if Oxford reads were extracted
+    if [ -s ${ONT_context_contigs} ];
+    then
+      asm=${ONT_context_contigs}
+      for r in {00..09};
+      do
+        mkdir ${wd}/ASM_work/pilon${r}
+        pilon_func ${asm} ${wd}/ASM_work/pilon${r} ${wd}/ASM_work/pilon.log paired ${ill1} ${ill2} ${threads}
+        asm=${wd}/ASM_work/pilon${r}/pilon_finished.assembly.fasta
+      done
+    else
+      touch ${polished_context_contigs}
+    fi
   fi
 
   # Combine polished Oxford reads, flye contigs, and spades contigs not covered by flye nor by Oxford reads
